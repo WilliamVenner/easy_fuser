@@ -215,6 +215,9 @@ bitflags! {
         /// Create an unnamed temporary file (Linux only).
         #[cfg(target_os = "linux")]
         const TEMPORARY_FILE = libc::O_TMPFILE;
+        /// Open file in path-only mode (Linux only).
+        #[cfg(target_os = "linux")]
+        const PATH = libc::O_PATH;
         const _ = !0;
     }
 }
