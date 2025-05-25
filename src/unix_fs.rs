@@ -499,7 +499,7 @@ pub fn open(path: &Path, flags: OpenFlags) -> Result<OwnedFd, PosixError> {
 /// then reads from there. In all cases, the file's position after the read operation
 /// remains where it was before the read, regardless of how much data was read.
 pub fn read(fd: BorrowedFd, seek: SeekFrom, size: usize) -> Result<Vec<u8>, PosixError> {
-    let mut buffer = vec![0; size as usize];
+    let mut buffer = Vec::with_capacity(size);
     let offset: libc::off_t = match seek {
         SeekFrom::Start(offset) => offset.try_into().map_err(|_| {
             PosixError::new(
@@ -537,7 +537,7 @@ pub fn read(fd: BorrowedFd, seek: SeekFrom, size: usize) -> Result<Vec<u8>, Posi
     if bytes_read == -1 {
         return Err(PosixError::last_error(format!("{:?}: read failed", fd)));
     }
-    buffer.truncate(bytes_read as usize);
+    unsafe { buffer.set_len(bytes_read as usize) };
     Ok(buffer)
 }
 
