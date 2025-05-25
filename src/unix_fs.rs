@@ -498,9 +498,17 @@ pub fn open(path: &Path, flags: OpenFlags) -> Result<OwnedFd, PosixError> {
 /// For `SeekFrom::Current` or `SeekFrom::End`, it first updates the file's current position,
 /// then reads from there. In all cases, the file's position after the read operation
 /// remains where it was before the read, regardless of how much data was read.
-pub fn read(fd: BorrowedFd, seek: SeekFrom, size: usize) -> Result<Vec<u8>, PosixError> {
+pub fn read(fd: BorrowedFd, mut seek: SeekFrom, size: usize) -> Result<Vec<u8>, PosixError> {
+    read_ex(fd, &mut seek, size)
+}
+
+/// Reads data from a file descriptor at a specified offset, updating the provided `seek` position.
+/// 
+/// This function exhibits the same behavior as [`read`].
+pub fn read_ex(fd: BorrowedFd, seek: &mut SeekFrom, size: usize) -> Result<Vec<u8>, PosixError> {
     let mut buffer = vec![0; size as usize];
-    let offset: libc::off_t = match seek {
+
+    let offset: libc::off_t = match *seek {
         SeekFrom::Start(offset) => offset.try_into().map_err(|_| {
             PosixError::new(
                 ErrorKind::InvalidArgument,
@@ -526,6 +534,7 @@ pub fn read(fd: BorrowedFd, seek: SeekFrom, size: usize) -> Result<Vec<u8>, Posi
             })?
         }
     };
+
     let bytes_read = unsafe {
         libc::pread(
             fd.as_raw_fd(),
@@ -537,7 +546,11 @@ pub fn read(fd: BorrowedFd, seek: SeekFrom, size: usize) -> Result<Vec<u8>, Posi
     if bytes_read == -1 {
         return Err(PosixError::last_error(format!("{:?}: read failed", fd)));
     }
+
     buffer.truncate(bytes_read as usize);
+
+    *seek = SeekFrom::Start(offset as u64);
+
     Ok(buffer)
 }
 
@@ -550,9 +563,17 @@ pub fn read(fd: BorrowedFd, seek: SeekFrom, size: usize) -> Result<Vec<u8>, Posi
 /// For `SeekFrom::Current` or `SeekFrom::End`, it first updates the file's current position,
 /// then reads from there. In all cases, the file's position after the read operation
 /// remains where it was before the read, regardless of how much data was read.
-pub fn write(fd: BorrowedFd, seek: SeekFrom, data: &[u8]) -> Result<usize, PosixError> {
+pub fn write(fd: BorrowedFd, mut seek: SeekFrom, data: &[u8]) -> Result<usize, PosixError> {
+    write_ex(fd, &mut seek, data)
+}
+
+/// Writes data to a file descriptor at a specified offset, updating the provided `seek` position.
+/// 
+/// This function exhibits the same behavior as [`write`].
+pub fn write_ex(fd: BorrowedFd, seek: &mut SeekFrom, data: &[u8]) -> Result<usize, PosixError> {
     let bytes_to_write = data.len() as usize;
-    let offset: libc::off_t = match seek {
+
+    let offset: libc::off_t = match *seek {
         SeekFrom::Start(offset) => offset.try_into().map_err(|_| {
             PosixError::new(
                 ErrorKind::InvalidArgument,
@@ -578,6 +599,7 @@ pub fn write(fd: BorrowedFd, seek: SeekFrom, data: &[u8]) -> Result<usize, Posix
             })?
         }
     };
+
     let bytes_written = unsafe {
         libc::pwrite(
             fd.as_raw_fd(),
@@ -589,6 +611,8 @@ pub fn write(fd: BorrowedFd, seek: SeekFrom, data: &[u8]) -> Result<usize, Posix
     if bytes_written == -1 {
         return Err(PosixError::last_error(format!("{:?}: write failed", fd)));
     }
+
+    *seek = SeekFrom::Start(offset as u64);
 
     Ok(bytes_written as usize)
 }
