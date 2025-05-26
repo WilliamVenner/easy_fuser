@@ -498,17 +498,17 @@ pub fn open(path: &Path, flags: OpenFlags) -> Result<OwnedFd, PosixError> {
 /// For `SeekFrom::Current` or `SeekFrom::End`, it first updates the file's current position,
 /// then reads from there. In all cases, the file's position after the read operation
 /// remains where it was before the read, regardless of how much data was read.
-pub fn read(fd: BorrowedFd, mut seek: SeekFrom, size: usize) -> Result<Vec<u8>, PosixError> {
-    read_ex(fd, &mut seek, size)
+pub fn read(fd: BorrowedFd, seek: SeekFrom, size: usize) -> Result<Vec<u8>, PosixError> {
+    read_ex(fd, seek, size).map(|ReadExResult { read, .. }| read)
 }
 
-/// Reads data from a file descriptor at a specified offset, updating the provided `seek` position.
+/// Reads data from a file descriptor at a specified offset, returning a [`ReadExResult`].
 /// 
-/// This function exhibits the same behavior as [`read`].
-pub fn read_ex(fd: BorrowedFd, seek: &mut SeekFrom, size: usize) -> Result<Vec<u8>, PosixError> {
+/// This function exhibits the same behavior as [`read`], but returns extra information.
+pub fn read_ex(fd: BorrowedFd, seek: SeekFrom, size: usize) -> Result<ReadExResult, PosixError> {
     let mut buffer = vec![0; size as usize];
 
-    let offset: libc::off_t = match *seek {
+    let offset: libc::off_t = match seek {
         SeekFrom::Start(offset) => offset.try_into().map_err(|_| {
             PosixError::new(
                 ErrorKind::InvalidArgument,
@@ -549,9 +549,17 @@ pub fn read_ex(fd: BorrowedFd, seek: &mut SeekFrom, size: usize) -> Result<Vec<u
 
     buffer.truncate(bytes_read as usize);
 
-    *seek = SeekFrom::Start(offset as u64);
+    Ok(ReadExResult { read: buffer, pos: offset as u64 })
+}
 
-    Ok(buffer)
+#[derive(Debug, Clone, PartialEq, Eq)]
+/// Result from calling [`read_ex`].
+pub struct ReadExResult {
+    /// The bytes that were read from the file descriptor.
+    pub read: Vec<u8>,
+
+    /// The new position of the file descriptor after the read operation.
+    pub pos: u64,
 }
 
 /// Writes data to a file descriptor at a specified offset.
@@ -563,17 +571,17 @@ pub fn read_ex(fd: BorrowedFd, seek: &mut SeekFrom, size: usize) -> Result<Vec<u
 /// For `SeekFrom::Current` or `SeekFrom::End`, it first updates the file's current position,
 /// then reads from there. In all cases, the file's position after the read operation
 /// remains where it was before the read, regardless of how much data was read.
-pub fn write(fd: BorrowedFd, mut seek: SeekFrom, data: &[u8]) -> Result<usize, PosixError> {
-    write_ex(fd, &mut seek, data)
+pub fn write(fd: BorrowedFd, seek: SeekFrom, data: &[u8]) -> Result<usize, PosixError> {
+    write_ex(fd, seek, data).map(|WriteExResult { wrote, .. }| wrote)
 }
 
-/// Writes data to a file descriptor at a specified offset, updating the provided `seek` position.
+/// Writes data to a file descriptor at a specified offset, returning a [`WriteExResult`].
 /// 
-/// This function exhibits the same behavior as [`write`].
-pub fn write_ex(fd: BorrowedFd, seek: &mut SeekFrom, data: &[u8]) -> Result<usize, PosixError> {
+/// This function exhibits the same behavior as [`write`], but returns extra information.
+pub fn write_ex(fd: BorrowedFd, seek: SeekFrom, data: &[u8]) -> Result<WriteExResult, PosixError> {
     let bytes_to_write = data.len() as usize;
 
-    let offset: libc::off_t = match *seek {
+    let offset: libc::off_t = match seek {
         SeekFrom::Start(offset) => offset.try_into().map_err(|_| {
             PosixError::new(
                 ErrorKind::InvalidArgument,
@@ -612,9 +620,17 @@ pub fn write_ex(fd: BorrowedFd, seek: &mut SeekFrom, data: &[u8]) -> Result<usiz
         return Err(PosixError::last_error(format!("{:?}: write failed", fd)));
     }
 
-    *seek = SeekFrom::Start(offset as u64);
+    Ok(WriteExResult { wrote: bytes_written as usize, pos: offset as u64 })
+}
 
-    Ok(bytes_written as usize)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Result from calling [`write_ex`].
+pub struct WriteExResult {
+    /// How many bytes were written.
+    pub wrote: usize,
+
+    /// The new position of the file descriptor after the write operation.
+    pub pos: u64,
 }
 
 /// Flushes any buffered data to the file system for the given file descriptor.
