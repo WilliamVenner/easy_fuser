@@ -17,7 +17,7 @@ mod serial {
 
     use std::cell::RefCell;
 
-    pub(crate) struct FuseDriver<TId, THandler>
+    pub struct FuseDriver<TId, THandler>
     where
         TId: FileIdType,
         THandler: FuseHandler<TId>,
@@ -43,19 +43,19 @@ mod serial {
             }
         }
 
-        pub fn get_handler(&self) -> &THandler {
+        pub(crate) fn get_handler(&self) -> &THandler {
             &self.handler
         }
 
-        pub fn get_resolver(&self) -> &TId::Resolver {
+        pub(crate) fn get_resolver(&self) -> &TId::Resolver {
             &self.resolver
         }
 
-        pub fn get_dirmap_iter(&self) -> &RefCell<DirIter<FileKind>> {
+        pub(crate) fn get_dirmap_iter(&self) -> &RefCell<DirIter<FileKind>> {
             &self.dirmap_iter
         }
 
-        pub fn get_dirmapplus_iter(&self) -> &RefCell<DirIter<FileAttribute>> {
+        pub(crate) fn get_dirmapplus_iter(&self) -> &RefCell<DirIter<FileAttribute>> {
             &self.dirmapplus_iter
         }
     }
@@ -82,7 +82,7 @@ mod parallel {
     #[cfg(not(feature = "deadlock_detection"))]
     use std::sync::{Mutex, MutexGuard};
 
-    pub(crate) struct FuseDriver<TId, THandler>
+    pub struct FuseDriver<TId, THandler>
     where
         TId: FileIdType,
         THandler: FuseHandler<TId>,
@@ -91,7 +91,7 @@ mod parallel {
         resolver: Arc<TId::Resolver>,
         dirmap_iter: Arc<Mutex<DirIter<FileKind>>>,
         dirmapplus_iter: Arc<Mutex<DirIter<FileAttribute>>>,
-        pub threadpool: ThreadPool,
+        pub(crate) threadpool: ThreadPool,
     }
 
     impl<TId, THandler> FuseDriver<TId, THandler>
@@ -111,19 +111,19 @@ mod parallel {
             }
         }
 
-        pub fn get_handler(&self) -> Arc<THandler> {
+        pub(crate) fn get_handler(&self) -> Arc<THandler> {
             self.handler.clone()
         }
 
-        pub fn get_resolver(&self) -> Arc<TId::Resolver> {
+        pub(crate) fn get_resolver(&self) -> Arc<TId::Resolver> {
             self.resolver.clone()
         }
 
-        pub fn get_dirmap_iter(&self) -> Arc<Mutex<DirIter<FileKind>>> {
+        pub(crate) fn get_dirmap_iter(&self) -> Arc<Mutex<DirIter<FileKind>>> {
             self.dirmap_iter.clone()
         }
 
-        pub fn get_dirmapplus_iter(&self) -> Arc<Mutex<DirIter<FileAttribute>>> {
+        pub(crate) fn get_dirmapplus_iter(&self) -> Arc<Mutex<DirIter<FileAttribute>>> {
             self.dirmapplus_iter.clone()
         }
     }
@@ -145,7 +145,7 @@ mod async_task {
     use tokio::runtime::Runtime;
     use tokio::sync::Mutex;
 
-    pub(crate) struct FuseDriver<TId, THandler>
+    pub struct FuseDriver<TId, THandler>
     where
         TId: FileIdType,
         THandler: FuseHandler<TId>,
@@ -174,19 +174,19 @@ mod async_task {
             }
         }
 
-        pub fn get_handler(&self) -> Arc<THandler> {
+        pub(crate) fn get_handler(&self) -> Arc<THandler> {
             self.handler.clone()
         }
 
-        pub fn get_resolver(&self) -> Arc<TId::Resolver> {
+        pub(crate) fn get_resolver(&self) -> Arc<TId::Resolver> {
             self.resolver.clone()
         }
 
-        pub fn get_dirmap_iter(&self) -> Arc<Mutex<DirIter<FileKind>>> {
+        pub(crate) fn get_dirmap_iter(&self) -> Arc<Mutex<DirIter<FileKind>>> {
             self.dirmap_iter.clone()
         }
 
-        pub fn get_dirmapplus_iter(&self) -> Arc<Mutex<DirIter<FileAttribute>>> {
+        pub(crate) fn get_dirmapplus_iter(&self) -> Arc<Mutex<DirIter<FileAttribute>>> {
             self.dirmapplus_iter.clone()
         }
     }
