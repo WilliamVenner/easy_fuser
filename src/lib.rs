@@ -35,6 +35,7 @@ pub mod prelude {
     pub use super::fuse_handler::FuseHandler;
     pub use super::types::*;
     pub use super::{mount, spawn_mount};
+    pub use super::core::FuseDriver;
 
     pub use fuser::{BackgroundSession, MountOption, Session, SessionUnmounter};
 }
