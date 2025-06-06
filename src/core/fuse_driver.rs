@@ -982,14 +982,21 @@ where
         let req = RequestInfo::from(req);
         let handler = self.get_handler();
         let resolver = self.get_resolver();
-        let data = data.to_owned();
+        let data = {
+            #[cfg(feature = "serial")] {
+                data
+            }
+            #[cfg(feature = "parallel")] {
+                data.to_vec()
+            }
+        };
         execute_task!(self, {
             match handler.write(
                 &req,
                 resolver.resolve_id(ino),
                 unsafe { BorrowedFileHandle::from_raw(fh) },
                 seek_from_raw(None, offset),
-                data,
+                data.into(),
                 FUSEWriteFlags::from_bits_retain(write_flags),
                 OpenFlags::from_bits_retain(flags),
                 lock_owner,
