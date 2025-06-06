@@ -7,6 +7,7 @@ use rand::Rng;
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::borrow::Cow;
 
 pub struct RandomFS {
     inner: DefaultFuseHandler,
@@ -235,7 +236,7 @@ impl FuseHandler<Inode> for RandomFS {
         _ino: Inode,
         _fh: BorrowedFileHandle,
         _offset: SeekFrom,
-        data: Vec<u8>,
+        data: Cow<'_, [u8]>,
         _write_flags: FUSEWriteFlags,
         _flags: OpenFlags,
         _lock_owner: Option<u64>,

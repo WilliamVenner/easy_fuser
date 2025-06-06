@@ -90,6 +90,7 @@
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
 use std::time::Duration;
+use std::borrow::Cow;
 
 use crate::types::*;
 
@@ -570,7 +571,7 @@ pub trait FuseHandler<TId: FileIdType>: OptionalSendSync + 'static {
         file_id: TId,
         file_handle: BorrowedFileHandle,
         seek: SeekFrom,
-        data: Vec<u8>,
+        data: Cow<'_, [u8]>,
         write_flags: FUSEWriteFlags,
         flags: OpenFlags,
         lock_owner: Option<u64>,

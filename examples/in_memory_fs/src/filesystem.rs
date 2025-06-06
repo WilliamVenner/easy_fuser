@@ -576,12 +576,13 @@ impl FuseHandler<Inode> for InMemoryFS {
         ino: Inode,
         _fh: BorrowedFileHandle,
         offset: SeekFrom,
-        data: Vec<u8>,
+        data: Cow<'_, [u8]>,
         _write_flags: FUSEWriteFlags,
         _flags: OpenFlags,
         _lock_owner: Option<u64>,
     ) -> FuseResult<u32> {
         self.access(req, ino.clone(), AccessMask::CAN_WRITE)?;
+        let data = data.as_ref();
         let mut fs = self.fs.lock().unwrap();
         if let Some(node) = fs.inodes.get_mut(&ino) {
             let offset = match offset {

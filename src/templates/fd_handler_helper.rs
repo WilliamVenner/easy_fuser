@@ -71,6 +71,7 @@ prefer the usage of option `MountOption::RO` instead of `FdHandlerHelperReadOnly
 
 use crate::prelude::*;
 use crate::unix_fs;
+use std::borrow::Cow;
 
 macro_rules! fd_handler_readonly_methods {
     () => {
@@ -172,12 +173,12 @@ macro_rules! fd_handler_readwrite_methods {
             _file_id: TId,
             file_handle: BorrowedFileHandle,
             seek: SeekFrom,
-            data: Vec<u8>,
+            data: Cow<'_, [u8]>,
             _write_flags: FUSEWriteFlags,
             _flags: OpenFlags,
             _lock_owner: Option<u64>,
         ) -> FuseResult<u32> {
-            unix_fs::write(file_handle.as_borrowed_fd(), seek, &data).map(|res| res as u32)
+            unix_fs::write(file_handle.as_borrowed_fd(), seek, data.as_ref()).map(|res| res as u32)
         }
     };
 }

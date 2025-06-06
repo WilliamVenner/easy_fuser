@@ -1,7 +1,5 @@
 use std::{
-    ffi::{OsStr, OsString},
-    path::Path,
-    time::Duration,
+    borrow::Cow, ffi::{OsStr, OsString}, path::Path, time::Duration
 };
 
 use fuser::KernelConfig;
@@ -1052,7 +1050,7 @@ impl<TId: FileIdType> FuseHandler<TId> for DefaultFuseHandler {
         file_id: TId,
         file_handle: BorrowedFileHandle,
         seek: SeekFrom,
-        data: Vec<u8>,
+        data: Cow<'_, [u8]>,
         write_flags: FUSEWriteFlags,
         flags: OpenFlags,
         lock_owner: Option<u64>,
