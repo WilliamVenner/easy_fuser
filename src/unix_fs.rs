@@ -167,21 +167,21 @@ fn stat_to_kind(statbuf: libc::stat) -> Option<FileKind> {
     })
 }
 
-fn system_time_to_timespec(time: SystemTime) -> libc::timespec {
+fn system_time_to_timespec(time: SystemTime) -> timespec {
     time.duration_since(std::time::UNIX_EPOCH)
-        .map(|duration| libc::timespec {
+        .map(|duration| timespec {
             tv_sec: duration.as_secs() as i64,
             tv_nsec: duration.subsec_nanos() as i64,
         })
         .unwrap_or_else(|err| {
             let duration = err.duration();
             if duration.subsec_nanos() == 0 {
-                libc::timespec {
+                timespec {
                     tv_sec: -(duration.as_secs() as i64),
                     tv_nsec: 0,
                 }
             } else {
-                libc::timespec {
+                timespec {
                     tv_sec: -((duration.as_secs() + 1) as i64),
                     tv_nsec: 1_000_000_000 - (duration.subsec_nanos() as i64),
                 }
