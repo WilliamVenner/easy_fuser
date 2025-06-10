@@ -115,11 +115,19 @@ pub fn convert_fileattribute(metadata: fs::Metadata) -> FileAttribute {
     }
 }
 
+fn convert_stat_unix_epoch(time: i64) -> SystemTime {
+    if time >= 0 {
+        SystemTime::UNIX_EPOCH + Duration::new(time as u64, 0)
+    } else {
+        SystemTime::UNIX_EPOCH - Duration::new(time.unsigned_abs(), 0)
+    }
+}
+
 fn convert_stat_struct(statbuf: libc::stat) -> Option<FileAttribute> {
     // Convert timestamp values to SystemTime
-    let atime = SystemTime::UNIX_EPOCH + Duration::new(statbuf.st_atime as u64, 0);
-    let mtime = SystemTime::UNIX_EPOCH + Duration::new(statbuf.st_mtime as u64, 0);
-    let ctime = SystemTime::UNIX_EPOCH + Duration::new(statbuf.st_ctime as u64, 0);
+    let atime = convert_stat_unix_epoch(statbuf.st_atime);
+    let mtime = convert_stat_unix_epoch(statbuf.st_mtime);
+    let ctime = convert_stat_unix_epoch(statbuf.st_ctime);
     // Extract permissions (lower 9 bits of st_mode)
     let perm = (statbuf.st_mode & (libc::S_IRWXU | libc::S_IRWXG | libc::S_IRWXO)) as u16;
     // Flags are not directly supported in `stat`, use a placeholder for now
@@ -159,17 +167,26 @@ fn stat_to_kind(statbuf: libc::stat) -> Option<FileKind> {
     })
 }
 
-fn system_time_to_timespec(time: SystemTime) -> Result<timespec, PosixError> {
-    let duration = time.duration_since(std::time::UNIX_EPOCH).map_err(|_| {
-        PosixError::new(
-            ErrorKind::InvalidArgument,
-            "System time could not be converted to TimeSpec",
-        )
-    })?;
-    Ok(timespec {
-        tv_sec: duration.as_secs() as i64,
-        tv_nsec: duration.subsec_nanos() as i64,
-    })
+fn system_time_to_timespec(time: SystemTime) -> libc::timespec {
+    time.duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| libc::timespec {
+            tv_sec: duration.as_secs() as i64,
+            tv_nsec: duration.subsec_nanos() as i64,
+        })
+        .unwrap_or_else(|err| {
+            let duration = err.duration();
+            if duration.subsec_nanos() == 0 {
+                libc::timespec {
+                    tv_sec: -(duration.as_secs() as i64),
+                    tv_nsec: 0,
+                }
+            } else {
+                libc::timespec {
+                    tv_sec: -((duration.as_secs() + 1) as i64),
+                    tv_nsec: 1_000_000_000 - (duration.subsec_nanos() as i64),
+                }
+            }
+        })
 }
 
 fn cstring_from_path(path: &Path) -> Result<CString, PosixError> {
@@ -300,12 +317,12 @@ pub fn setattr(path: &Path, attrs: SetAttrRequest) -> Result<FileAttribute, Posi
     if let (Some(atime), Some(mtime)) = (attrs.atime, attrs.mtime) {
         let times = match (atime, mtime) {
             (TimeOrNow::Now, TimeOrNow::Now) => {
-                let now_spec = system_time_to_timespec(SystemTime::now())?;
+                let now_spec = system_time_to_timespec(SystemTime::now());
                 [now_spec, now_spec]
             }
             (TimeOrNow::SpecificTime(at), TimeOrNow::SpecificTime(mt)) => {
-                let at_spec = system_time_to_timespec(at)?;
-                let mt_spec = system_time_to_timespec(mt)?;
+                let at_spec = system_time_to_timespec(at);
+                let mt_spec = system_time_to_timespec(mt);
                 [at_spec, mt_spec]
             }
             _ => {
@@ -1094,7 +1111,7 @@ mod tests {
     #[test]
     fn test_system_time_to_timespec() {
         let system_time = SystemTime::now();
-        let timespec = system_time_to_timespec(system_time).unwrap();
+        let timespec = system_time_to_timespec(system_time);
 
         assert!(timespec.tv_sec > 0);
         assert!(timespec.tv_nsec >= 0);
