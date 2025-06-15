@@ -194,7 +194,9 @@ impl<TId: FileIdType> FuseHandler<TId> for DefaultFuseHandler {
         mode: u32,
         umask: u32,
         flags: OpenFlags,
-    ) -> FuseResult<(OwnedFileHandle, TId::Metadata, FUSEOpenResponseFlags)> {
+        #[cfg(feature = "fuse_passthrough")]
+        _passthrough: FusePassthroughInterfaceCreate,
+    ) -> FuseResult<FUSECreateResponse<TId>> {
         match self.handling {
             HandlingMethod::Error(kind) => Err(PosixError::new(
                 kind,
@@ -631,7 +633,9 @@ impl<TId: FileIdType> FuseHandler<TId> for DefaultFuseHandler {
         _req: &RequestInfo,
         file_id: TId,
         flags: OpenFlags,
-    ) -> FuseResult<(OwnedFileHandle, FUSEOpenResponseFlags)> {
+        #[cfg(feature = "fuse_passthrough")]
+        _passthrough: FusePassthroughInterfaceOpen,
+    ) -> FuseResult<FUSEOpenResponse> {
         match self.handling {
             HandlingMethod::Error(kind) => Err(PosixError::new(
                 kind,
@@ -654,11 +658,15 @@ impl<TId: FileIdType> FuseHandler<TId> for DefaultFuseHandler {
         _req: &RequestInfo,
         _file_id: TId,
         _flags: OpenFlags,
-    ) -> FuseResult<(OwnedFileHandle, FUSEOpenResponseFlags)> {
+        #[cfg(feature = "fuse_passthrough")]
+        _passthrough: FusePassthroughInterfaceOpen,
+    ) -> FuseResult<FUSEOpenResponse> {
         // Safe because in releasedir we don't use it
         Ok((
             unsafe { OwnedFileHandle::from_raw(0) },
             FUSEOpenResponseFlags::empty(),
+            #[cfg(feature = "fuse_passthrough")]
+            None,
         ))
     }
 

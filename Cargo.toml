@@ -14,14 +14,16 @@ serial = []
 parallel = ["dep:threadpool"]
 async = ["dep:async-trait", "dep:tokio"]
 deadlock_detection = ["parallel", "dep:parking_lot"]
-
+fuse_passthrough = ["dep:fuser-passthrough", "fuser-passthrough/abi-7-40"]
 
 [dependencies]
 # Core dependencies
 log = "0.4"
 libc = "0.2"
-fuser = "0.15"
 bitflags = "2.6.0"
+
+fuser = "0.15"
+fuser-passthrough = { package="fuser", git = "https://github.com/WilliamVenner/fuser.git", branch = "passthrough-create", optional = true }
 
 # Parallel dependencies
 threadpool = { version = "1.8", optional = true }

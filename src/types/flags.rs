@@ -92,8 +92,6 @@ bitflags! {
         const NOFLUSH = 1 << 5;
         /// Allow parallel direct writes.
         const PARALLEL_DIRECT_WRITES = 1 << 6;
-        /// Pass through operations to underlying filesystem.
-        const PASSTHROUGH = 1 << 7;
         const _ = !0;
     }
 }

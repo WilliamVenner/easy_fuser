@@ -19,6 +19,9 @@ compile_error!("Feature 'parallel' cannot be used with feature serial or async")
 #[cfg(all(feature = "async", any(feature = "serial", feature = "parallel")))]
 compile_error!("Feature 'async' cannot be used with feature serial or parallel");
 
+#[cfg(feature = "fuse_passthrough")]
+pub extern crate fuser_passthrough as fuser;
+
 mod core;
 mod fuse_handler;
 

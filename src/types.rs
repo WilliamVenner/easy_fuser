@@ -27,3 +27,12 @@ mod inode;
 pub use self::{arguments::*, errors::*, file_handle::*, file_id_type::*, flags::*, inode::*};
 
 pub use fuser::{FileType as FileKind, KernelConfig, TimeOrNow};
+
+#[cfg(feature = "fuse_passthrough")]
+mod fuse_passthrough;
+
+#[cfg(feature = "fuse_passthrough")]
+pub use self::fuse_passthrough::*;
+
+#[cfg(feature = "fuse_passthrough")]
+pub use fuser::BackingId;

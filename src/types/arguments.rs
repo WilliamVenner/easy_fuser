@@ -21,6 +21,11 @@ use fuser::FileAttr as FuseFileAttr;
 use fuser::{FileType, Request, TimeOrNow};
 use libc::mode_t;
 
+#[cfg(not(feature = "fuse_passthrough"))]
+use crate::types::FileIdType;
+#[cfg(feature = "fuse_passthrough")]
+use crate::types::{FUSEOpenResponseFlags, FileIdType, OwnedFileHandle};
+
 use super::BorrowedFileHandle;
 use super::LockType;
 
@@ -369,3 +374,15 @@ pub struct LockInfo {
     /// Process ID of the lock owner
     pub pid: u32,
 }
+
+#[cfg(feature = "fuse_passthrough")]
+pub type FUSEOpenResponse<'a> = (OwnedFileHandle, FUSEOpenResponseFlags, Option<&'a fuser::BackingId>);
+
+#[cfg(not(feature = "fuse_passthrough"))]
+pub type FUSEOpenResponse<'a> = (OwnedFileHandle, FUSEOpenResponseFlags);
+
+#[cfg(feature = "fuse_passthrough")]
+pub type FUSECreateResponse<'a, TId> = (OwnedFileHandle, <TId as FileIdType>::Metadata, FUSEOpenResponseFlags, Option<&'a fuser::BackingId>);
+
+#[cfg(not(feature = "fuse_passthrough"))]
+pub type FUSECreateResponse<'a, TId> = (OwnedFileHandle, <TId as FileIdType>::Metadata, FUSEOpenResponseFlags);

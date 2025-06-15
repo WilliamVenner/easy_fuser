@@ -138,19 +138,40 @@ where
                 mode,
                 umask,
                 OpenFlags::from_bits_retain(flags),
+                #[cfg(feature = "fuse_passthrough")]
+                FusePassthroughInterface(&reply),
             ) {
-                Ok((file_handle, metadata, response_flags)) => {
+                Ok(response) => {
+                    #[cfg(not(feature = "fuse_passthrough"))]
+                    let (file_handle, metadata, response_flags) = response;
+
+                    #[cfg(feature = "fuse_passthrough")]
+                    let (file_handle, metadata, response_flags, backing_id) = response;
+
                     let default_ttl = handler.get_default_ttl();
                     let (id, file_attr) = TId::extract_metadata(metadata);
                     let ino = resolver.lookup(parent, &name, id, true);
                     let (fuse_attr, ttl, generation) = file_attr.to_fuse(ino);
-                    reply.created(
-                        &ttl.unwrap_or(default_ttl),
-                        &fuse_attr,
-                        generation.unwrap_or(get_random_generation()),
-                        file_handle.as_raw(),
-                        response_flags.bits(),
-                    );
+
+                    macro_rules! call_created {
+                        ($created:ident($($backing_id:expr)?)) => {
+                            reply.$created(
+                                &ttl.unwrap_or(default_ttl),
+                                &fuse_attr,
+                                generation.unwrap_or(get_random_generation()),
+                                file_handle.as_raw(),
+                                response_flags.bits(),
+                                $($backing_id)?
+                            )
+                        };
+                    }
+
+                    #[cfg(feature = "fuse_passthrough")]
+                    if let Some(backing_id) = backing_id {
+                        return call_created!(created_passthrough(backing_id));
+                    }
+
+                    call_created!(created())
                 }
                 Err(e) => {
                     warn!("create: {:?}, parent_ino: {:x?}, {:?}", parent, e, req);
@@ -553,8 +574,21 @@ where
                 &req,
                 resolver.resolve_id(ino),
                 OpenFlags::from_bits_retain(_flags),
+                #[cfg(feature = "fuse_passthrough")]
+                FusePassthroughInterface(&reply),
             ) {
-                Ok((file_handle, response_flags)) => {
+                Ok(response) => {
+                    #[cfg(feature = "fuse_passthrough")]
+                    let (file_handle, response_flags, passthrough_backing_id) = response;
+
+                    #[cfg(not(feature = "fuse_passthrough"))]
+                    let (file_handle, response_flags) = response;
+                    
+                    #[cfg(feature = "fuse_passthrough")]
+                    if let Some(passthrough_backing_id) = passthrough_backing_id {
+                        return reply.opened_passthrough(file_handle.as_raw(), response_flags.bits(), &passthrough_backing_id);
+                    }
+                    
                     reply.opened(file_handle.as_raw(), response_flags.bits())
                 }
                 Err(e) => {
@@ -574,8 +608,21 @@ where
                 &req,
                 resolver.resolve_id(ino),
                 OpenFlags::from_bits_retain(_flags),
+                #[cfg(feature = "fuse_passthrough")]
+                FusePassthroughInterface(&reply),
             ) {
-                Ok((file_handle, response_flags)) => {
+                Ok(response) => {
+                    #[cfg(feature = "fuse_passthrough")]
+                    let (file_handle, response_flags, passthrough_backing_id) = response;
+
+                    #[cfg(not(feature = "fuse_passthrough"))]
+                    let (file_handle, response_flags) = response;
+                    
+                    #[cfg(feature = "fuse_passthrough")]
+                    if let Some(passthrough_backing_id) = passthrough_backing_id {
+                        return reply.opened_passthrough(file_handle.as_raw(), response_flags.bits(), &passthrough_backing_id);
+                    }
+                    
                     reply.opened(file_handle.as_raw(), response_flags.bits())
                 }
                 Err(e) => {
