@@ -21,12 +21,7 @@ use fuser::FileAttr as FuseFileAttr;
 use fuser::{FileType, Request, TimeOrNow};
 use libc::mode_t;
 
-#[cfg(not(feature = "fuse_passthrough"))]
-use crate::types::FileIdType;
-#[cfg(feature = "fuse_passthrough")]
-use crate::types::{FUSEOpenResponseFlags, FileIdType, OwnedFileHandle};
-
-use super::BorrowedFileHandle;
+use super::{BorrowedFileHandle, FUSEOpenResponseFlags, FileIdType, OwnedFileHandle};
 use super::LockType;
 
 pub use std::io::SeekFrom;
