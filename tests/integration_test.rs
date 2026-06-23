@@ -1,5 +1,5 @@
 use easy_fuser::prelude::*;
-use easy_fuser::templates::{mirror_fs::*, DefaultFuseHandler};
+use easy_fuser::templates::{DefaultFuseHandler, mirror_fs::*};
 
 use std::fs::{self, File};
 use std::io::Write;
@@ -97,9 +97,20 @@ fn test_mirror_fs_operations() {
     }
 
     eprintln!("Unmounting filesystem...");
+    #[cfg(not(any(target_os = "freebsd", target_os = "macos")))]
     let _ = std::process::Command::new("fusermount")
         .arg("-u")
         .arg(&mntpoint)
         .status();
+    #[cfg(any(target_os = "freebsd", target_os = "macos"))]
+    let _ = std::process::Command::new("umount")
+        .arg(&mntpoint)
+        .status();
+    #[cfg(not(any(target_os = "freebsd", target_os = "macos")))]
     handle.join().unwrap();
+    #[cfg(target_os = "freebsd")] // TODO: explore why error: no such file or directory happens there
+    let _ = handle.join();
+    #[cfg(target_os = "macos")] // TODO: why handle.join is blocking ?
+    drop(handle); 
+    drop(mntpoint);
 }

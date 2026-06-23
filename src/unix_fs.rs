@@ -63,6 +63,7 @@ pub(crate) mod macos_fs;
 use macos_fs as unix_impl;
 
 pub(crate) use unix_impl::get_errno;
+pub(crate) use unix_impl::lseek as lseek_raw;
 pub use unix_impl::{copy_file_range, statfs};
 
 /// Converts a `std::fs::FileType` to the corresponding `FileKind` expected by fuse_api.
@@ -289,7 +290,7 @@ pub fn setattr(path: &Path, attrs: SetAttrRequest) -> Result<FileAttribute, Posi
                 )));
             }
             let res = unsafe {
-                libc::ftruncate(
+                unix_impl::ftruncate(
                     fd,
                     i64::try_from(size).map_err(|_| {
                         PosixError::new(
@@ -331,7 +332,7 @@ pub fn setattr(path: &Path, attrs: SetAttrRequest) -> Result<FileAttribute, Posi
                 return Err(PosixError::new(
                     ErrorKind::InvalidArgument,
                     "Could not convert timespec to TimeOrNow in setattr",
-                ))
+                ));
             }
         };
         let result = unsafe {
@@ -531,7 +532,7 @@ pub fn read(fd: BorrowedFd, seek: SeekFrom, size: usize) -> Result<Vec<u8>, Posi
 }
 
 /// Reads data from a file descriptor at a specified offset, returning a [`ReadExResult`].
-/// 
+///
 /// This function exhibits the same behavior as [`read`], but returns extra information.
 pub fn read_ex(fd: BorrowedFd, seek: SeekFrom, size: usize) -> Result<ReadExResult, PosixError> {
     let mut buffer = Vec::with_capacity(size);
@@ -540,7 +541,7 @@ pub fn read_ex(fd: BorrowedFd, seek: SeekFrom, size: usize) -> Result<ReadExResu
         SeekFrom::Start(offset) => offset.try_into().map_err(|_| {
             PosixError::new(
                 ErrorKind::InvalidArgument,
-                "Offset too large for off_t".to_string(),
+                "Offset too large for i64".to_string(),
             )
         })?,
         SeekFrom::Current(offset) => {
@@ -564,7 +565,7 @@ pub fn read_ex(fd: BorrowedFd, seek: SeekFrom, size: usize) -> Result<ReadExResu
     };
 
     let bytes_read = unsafe {
-        libc::pread(
+        unix_impl::pread(
             fd.as_raw_fd(),
             buffer.as_mut_ptr() as *mut libc::c_void,
             size,
@@ -613,7 +614,7 @@ pub fn write_ex(fd: BorrowedFd, seek: SeekFrom, data: &[u8]) -> Result<WriteExRe
         SeekFrom::Start(offset) => offset.try_into().map_err(|_| {
             PosixError::new(
                 ErrorKind::InvalidArgument,
-                "Offset too large for off_t".to_string(),
+                "Offset too large for i64".to_string(),
             )
         })?,
         SeekFrom::Current(offset) => {
@@ -637,7 +638,7 @@ pub fn write_ex(fd: BorrowedFd, seek: SeekFrom, data: &[u8]) -> Result<WriteExRe
     };
 
     let bytes_written = unsafe {
-        libc::pwrite(
+        unix_impl::pwrite(
             fd.as_raw_fd(),
             data.as_ptr() as *const libc::c_void,
             bytes_to_write,
@@ -1058,11 +1059,19 @@ pub fn fallocate(
 /// offset and whence values. The new position is returned as a 64-bit integer.
 pub fn lseek(fd: BorrowedFd, seek: SeekFrom) -> Result<i64, PosixError> {
     let (whence, offset) = match seek {
-        SeekFrom::Start(offset) => (libc::SEEK_SET, offset as libc::off_t),
-        SeekFrom::Current(offset) => (libc::SEEK_CUR, offset as libc::off_t),
-        SeekFrom::End(offset) => (libc::SEEK_END, offset as libc::off_t),
+        SeekFrom::Start(offset) => (
+            libc::SEEK_SET,
+            i64::try_from(offset).map_err(|_| {
+                PosixError::new(
+                    ErrorKind::InvalidArgument,
+                    "Offset too large for i64".to_string(),
+                )
+            })?,
+        ),
+        SeekFrom::Current(offset) => (libc::SEEK_CUR, offset),
+        SeekFrom::End(offset) => (libc::SEEK_END, offset),
     };
-    let result = unsafe { libc::lseek(fd.as_raw_fd(), offset, whence) };
+    let result = unsafe { lseek_raw(fd.as_raw_fd(), offset, whence) };
     if result == -1 {
         return Err(PosixError::last_error(format!(
             "{:?}: lseek failed. Offset: {:?}, whence: {:?}",

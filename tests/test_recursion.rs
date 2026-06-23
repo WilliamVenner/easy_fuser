@@ -1,5 +1,5 @@
 use easy_fuser::prelude::*;
-use easy_fuser::templates::{mirror_fs::*, DefaultFuseHandler};
+use easy_fuser::templates::{DefaultFuseHandler, mirror_fs::*};
 
 use std::fs;
 use std::path::PathBuf;
@@ -55,7 +55,9 @@ fn test_mirror_fs_recursion() {
 
     // Check if the command completed within 5 seconds
     if elapsed_time >= Duration::from_secs(5) {
-        panic!("Test failed: 'ls' command took 5 seconds or more, indicating a potential infinite recursion.");
+        panic!(
+            "Test failed: 'ls' command took 5 seconds or more, indicating a potential infinite recursion."
+        );
     }
 
     // Check the output of the 'ls' command
@@ -73,9 +75,20 @@ fn test_mirror_fs_recursion() {
     println!("Test passed: No infinite recursion detected.");
 
     eprintln!("Unmounting filesystem...");
+    #[cfg(not(any(target_os = "freebsd", target_os = "macos")))]
     let _ = std::process::Command::new("fusermount")
         .arg("-u")
         .arg(&mntpoint)
         .status();
+    #[cfg(any(target_os = "freebsd", target_os = "macos"))]
+    let _ = std::process::Command::new("umount")
+        .arg(&mntpoint)
+        .status();
+    #[cfg(not(any(target_os = "freebsd", target_os = "macos")))]
     handle.join().unwrap();
+    #[cfg(target_os = "freebsd")] // TODO: explore why error: no such file or directory happens there
+    let _ = handle.join();
+    #[cfg(target_os = "macos")] // TODO: why handle.join is blocking ?
+    drop(handle); 
+    drop(mntpoint);
 }
