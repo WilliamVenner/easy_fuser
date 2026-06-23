@@ -278,8 +278,10 @@ pub fn setattr(path: &Path, attrs: SetAttrRequest) -> Result<FileAttribute, Posi
     // Change file size (if `size` is provided)
     if let Some(size) = attrs.size {
         let result = {
-            // If we have no file handle, use `open` to get one, then `ftruncate`
-            let fd = unsafe { libc::open(c_path.as_ptr(), libc::O_WRONLY) };
+            // If we have no file handle, use `open` to get one, then `ftruncate`.
+            // O_CLOEXEC so a concurrent mount's fork+exec'd `fusermount` helper
+            // cannot inherit this transient descriptor (see `open` above).
+            let fd = unsafe { libc::open(c_path.as_ptr(), libc::O_WRONLY | libc::O_CLOEXEC) };
             if fd == -1 {
                 return Err(PosixError::last_error(format!(
                     "{}: open failed in setattr",
@@ -496,7 +498,16 @@ pub fn rename(oldpath: &Path, newpath: &Path, flags: RenameFlags) -> Result<(), 
 /// Although this function returns a Fd, it is guaranted to be positive and valid.
 pub fn open(path: &Path, flags: OpenFlags) -> Result<OwnedFd, PosixError> {
     let c_path = cstring_from_path(path)?;
-    let fd = unsafe { libc::open(c_path.as_ptr(), flags.bits()) };
+    // Always set O_CLOEXEC on backing-store descriptors. These fds back FUSE
+    // file handles and must never be inherited by child processes. In
+    // particular, libfuse's `auto_unmount` feature fork+execs a long-lived
+    // `fusermount` helper for every mount; any fd lacking O_CLOEXEC that is
+    // open at that moment is inherited by that helper and pinned for the entire
+    // lifetime of the mount. If the backing file is later unlinked (e.g. by a
+    // content-addressed store's garbage collector), the inherited fd keeps the
+    // inode alive, leaking disk space that is never reclaimed until the mount
+    // is torn down.
+    let fd = unsafe { libc::open(c_path.as_ptr(), flags.bits() | libc::O_CLOEXEC) };
     if fd == -1 {
         return Err(PosixError::last_error(format!(
             "{}: open failed",
@@ -995,11 +1006,13 @@ pub fn create(
         open_flags
     };
 
-    // Open the file with O_CREAT (create if it does not exist)
+    // Open the file with O_CREAT (create if it does not exist).
+    // O_CLOEXEC so this backing-store fd is not leaked into fork+exec'd helpers
+    // such as libfuse's `auto_unmount` `fusermount` process (see `open` above).
     let fd = unsafe {
         libc::open(
             c_path.as_ptr(),
-            open_flags | libc::O_CREAT,
+            open_flags | libc::O_CREAT | libc::O_CLOEXEC,
             final_mode,
         )
     };
@@ -1094,6 +1107,30 @@ mod tests {
         let tmpfile = NamedTempFile::new().unwrap();
         let filetype = convert_filetype(fs::metadata(&tmpfile.path()).unwrap().file_type());
         assert_eq!(filetype, FileKind::RegularFile);
+        drop(tmpfile);
+    }
+
+    #[test]
+    fn test_open_sets_cloexec() {
+        // Regression test for an fd-inheritance disk-space leak: backing-store
+        // descriptors returned by `open` must have FD_CLOEXEC set so they are
+        // not inherited by fork+exec'd helpers such as libfuse's `auto_unmount`
+        // `fusermount` process. A leaked fd to a backing file that is later
+        // unlinked pins the inode and leaks disk space until the mount is torn
+        // down.
+        use std::os::fd::AsRawFd;
+
+        let tmpfile = NamedTempFile::new().unwrap();
+        let fd = open(tmpfile.path(), OpenFlags::READ_ONLY).unwrap();
+
+        let getfd = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_GETFD) };
+        assert!(getfd >= 0, "F_GETFD failed: {}", std::io::Error::last_os_error());
+        assert!(
+            getfd & libc::FD_CLOEXEC != 0,
+            "open() must set FD_CLOEXEC on the returned descriptor",
+        );
+
+        drop(fd);
         drop(tmpfile);
     }
 
